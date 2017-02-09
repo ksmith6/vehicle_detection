@@ -22,7 +22,7 @@ The goals / steps of this project are the following:
 [image5]: ./examples/bboxes_and_heat.png
 [image6]: ./examples/labels_map.png
 [image7]: ./examples/output_bboxes.png
-[video1]: ./Project_Submission.mp4
+[video1]: ./project_video_Submission.mp4
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/513/view) Points
 ###Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
@@ -44,11 +44,6 @@ The feature vectors were extracted from the training images in the **Training Da
 
 The final feature selection that I used was comprised of HOG features, color histogram features, and spatial binning features.  My image was converted from RGB to YUV color-space.
 
-
-
-
-![alt text][image2]
-
 ####2. Explain how you settled on your final choice of HOG parameters.
 
 I attempted using many different combinations of `orientations`, `pixels_per_cell`, and `cells_per_block`.  I would tweak one parameter at a time, and observe the resulting performance.  Typically, I'd be able to increase the likelihood of detecting the car, but it came at the cost of lots of spurious false positives in the image.  
@@ -60,7 +55,6 @@ I pursued this approach for several days; by the end, I was able to obtain fairl
 At that point, my study partner, Apik Zorian, mentioned that he obtained good performance from the YUV colorspace and by using all the HOG channels.  I followed his suggestion and was able to obtain much better performance.  The number of false positives fell dramatically!
 
 My final set of parameters is defined in the **Tuning Parameter Definition** section of the Jupyter Notebook.
-
 
 ####3. Describe how (and identify where in your code) you trained a classifier using your selected HOG features (and color features if you used them).
 
@@ -79,7 +73,7 @@ I re-used the Udacity provided algorithm for the sliding window search, because 
 
 I implemented multi-scale search by calling the `slide_window()` function several times with different input parameters.
 
-My goal was to minimize the number of boxes required to search the roadway area while ensuring coverage of the roadway.  To this end, I generated three sets of windows.  
+My goal was to minimize the number of boxes required to search the roadway area while ensuring coverage of the roadway.  To this end, I generated four sets of windows.  
 
 The first set of windows is a set of small boxes near the horizon over a limited span of x-coordinates.  This would set of windows would detect cars far ahead of the vehicle.  These boxes were 64px by 64px, and they swept from x=200 to x=800, and from y=400 to y=500 with a 50% overlap.
 
@@ -87,11 +81,15 @@ The second set of windows is a set of larger boxes that are sized to 128px by 12
 
 The third set of windows sweeps over the x-range of [400 1100] and the y-range of [350 500] with a window size of 50px by 50px.  This was an additional, focused scan on the roadway to help boost detection.  Because this is fairly similar to the first set of windows, it may be able to be consolidated with the first set of images, reducing processing time (future potential optimization).
 
+The final set of windows was dynamically created based on the detected vehicles from the heatmap.  For each distinct blob identified by the `label()` function, I generated a set of images centered about the detected çar.  This helped to ensure that the detected vehicle was not lost between gaps in the fixed window sets.  It also helped to refine the bounding box of the cars.
+
 ![alt text][image3]
 
 ####2. Show some examples of test images to demonstrate how your pipeline is working.  What did you do to try to minimize false positives and reliably detect cars?
 
 I minimized false positives by tuning the parameters of my classifiers while ensuring I did not begin missing real car detection.  Furthermore, I implemented a `HeatMap` class (based on the Udacity lecture material) that helped to reject spurious measurements.  The heatmap would †rack the number of repeated detections on pixels across multiple images.  
+
+For each window that detected a car, the heatmap pixels that the window contained were incremented by +1 until they saturated at a peak temperature of 10.  Upon processing each frame of the video stream, the heatmap was uniformly cooled by decrementing -1 from each pixel (capping the minimum pixel value at 0).  This helped to consistently track vehicles across multiple frames while rejecting spurious false positives.
 
 After applying a minimum threshold of **3** as my heatmap threshold, I used the `label` function from `scipy.ndimage.measurements` to combine overlapping detection windows (in the heatmap space).  
 
@@ -108,11 +106,11 @@ Here's a [link to my video result](./project_video.mp4)
 
 ####2. Describe how (and identify where in your code) you implemented some kind of filter for false positives and some method for combining overlapping bounding boxes.
 
-As described earlier, I implemented a Python class called `HeatMap` which tracked vehicle detections from frame to frame.  For each window that reported a detection, I would increment the pixels within the window in the `HeatMap` object.  For each frame, I would `chill()` the HeatMap, causing the heat to drain away over time (decremented all pixels by 1).  
+As described earlier, I implemented a Python class called `HeatMap` which tracked vehicle detections from frame to frame.  For each window that reported a detection, I would increment the pixels within the window in the `HeatMap` object (until the pixel values saturated at 10).  For each frame, I would `chill()` the HeatMap, causing the heat to drain away over time (decremented all pixels by 1).
 
 This approach would make spurious detections fade away by the next image frame.  Only repeated detections over the same area would increase the pixel values above a threshold.
 
-The thresholded heatmap was passed to the `scipy.ndimage.measurements.label()` function to detect distinct individual clusters within the heatmap.  This approach may fail to distinguish two cars that are in close proximity to one another.  For each detected *blob*, a bounding box was defined to encapsulate it, and then each bounding box was overlaid as a blue rectangle on the image.
+The thresholded heatmap was passed to the `scipy.ndimage.measurements.label()` function to detect distinct individual clusters within the heatmap.  This approach fails to distinguish two cars that are in close proximity to one another.  For each detected *blob*, a bounding box was defined to encapsulate it, and then each bounding box was overlaid as a blue rectangle on the image.
 
 ### Here are six frames and their corresponding heatmaps:
 
